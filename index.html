@@ -1,0 +1,1692 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>우리 아이 몸놀이 아케이드 - 7종 모션 게임</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Kids Friendly Rounded Korean Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Jua&family=Black+Han+Sans&family=Pretendard:wght@600;800;900&display=swap" rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        * {
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Jua', 'Pretendard', sans-serif;
+            background-color: #0f172a;
+            overflow: hidden;
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+        }
+        /* Thick Cartoon Outline Text */
+        .text-cartoon {
+            color: #ffffff;
+            text-shadow: 
+                -3px -3px 0 #1e293b,
+                 3px -3px 0 #1e293b,
+                -3px  3px 0 #1e293b,
+                 3px  3px 0 #1e293b,
+                 0px  5px 0 #0f172a;
+        }
+        .text-cartoon-sm {
+            color: #ffffff;
+            text-shadow: 
+                -2px -2px 0 #1e293b,
+                 2px -2px 0 #1e293b,
+                -2px  2px 0 #1e293b,
+                 2px  2px 0 #1e293b;
+        }
+        /* Arcade Card Styling (Matching Photo #1 & #2) */
+        .arcade-card {
+            border: 4px solid #1e293b;
+            border-radius: 22px;
+            box-shadow: 0 8px 0 #1e293b, 0 14px 24px rgba(0,0,0,0.28);
+            transition: transform 0.14s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.14s ease;
+            overflow: hidden;
+            position: relative;
+        }
+        .arcade-card:active, .arcade-card.hit-bounce {
+            transform: translateY(5px) scale(0.96);
+            box-shadow: 0 3px 0 #1e293b, 0 6px 12px rgba(0,0,0,0.2);
+        }
+        /* Top Left Score Pill (Matching Photo #1) */
+        .score-pill {
+            background: rgba(255, 255, 255, 0.94);
+            border: 4px solid #1e293b;
+            border-radius: 999px;
+            box-shadow: 0 5px 0 #1e293b;
+        }
+        /* Center Timer Progress Pill */
+        .timer-bar-box {
+            background: rgba(255, 255, 255, 0.92);
+            border: 4px solid #1e293b;
+            border-radius: 999px;
+            box-shadow: 0 5px 0 #1e293b;
+            overflow: hidden;
+        }
+        /* Polaroid Frame (Matching Photo #2) */
+        .polaroid-frame {
+            background: #ffffff;
+            border: 4px solid #1e293b;
+            border-radius: 20px;
+            box-shadow: 0 10px 0 #1e293b, 0 20px 30px rgba(0,0,0,0.35);
+            padding: 10px 10px 26px 10px;
+        }
+        @keyframes floatSlow {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-6px); }
+        }
+        .animate-float {
+            animation: floatSlow 2.4s infinite ease-in-out;
+        }
+    </style>
+</head>
+<body class="relative w-screen h-screen overflow-hidden select-none">
+
+    <!-- Hidden Raw Webcam Video & Offscreen Optical Diff Canvas -->
+    <video id="webcamVideo" class="hidden" playsinline muted></video>
+    <canvas id="motionDiffCanvas" width="120" height="90" class="hidden"></canvas>
+    <canvas id="snapshotCanvas" width="320" height="240" class="hidden"></canvas>
+
+    <!-- LAYER 1: Live Mirrored Camera + Game Entities Canvas -->
+    <canvas id="gameCanvas" class="absolute inset-0 w-full h-full block z-0"></canvas>
+
+    <!-- LAYER 2: TOP BAR (Always Visible Status & Parent Quick Controls) -->
+    <header class="relative z-30 w-full px-3 sm:px-6 pt-2.5 flex items-center justify-between pointer-events-none">
+        <!-- Left: Back Button (During Game) or Clock/Player Mode (In Lobby) -->
+        <div class="flex items-center gap-2.5 pointer-events-auto">
+            <button id="btnBackToLobby" class="hidden w-12 h-12 rounded-2xl bg-white border-4 border-slate-800 shadow-[0_4px_0_#1e293b] flex items-center justify-center text-slate-800 text-xl active:translate-y-1 transition">
+                <i class="fa-solid fa-arrow-left"></i>
+            </button>
+
+            <!-- Score Pill (Shown during gameplay, exact match to Photo #1) -->
+            <div id="inGameScoreGroup" class="hidden flex items-center gap-2">
+                <div class="score-pill px-4 py-1.5 flex items-center gap-2.5">
+                    <span class="w-5 h-5 rounded-full bg-red-500 border-2 border-slate-800 inline-block"></span>
+                    <span class="text-slate-700 text-lg sm:text-xl font-bold">1P</span>
+                    <span id="hudScore1P" class="text-slate-900 text-2xl sm:text-3xl font-extrabold">0</span>
+                </div>
+                <div id="hudScore2PPill" class="hidden score-pill px-4 py-1.5 flex items-center gap-2.5">
+                    <span class="w-5 h-5 rounded-full bg-blue-500 border-2 border-slate-800 inline-block"></span>
+                    <span class="text-slate-700 text-lg sm:text-xl font-bold">2P</span>
+                    <span id="hudScore2P" class="text-slate-900 text-2xl sm:text-3xl font-extrabold">0</span>
+                </div>
+            </div>
+
+            <!-- Lobby Status Badge -->
+            <div id="lobbyTopBadge" class="bg-white/90 border-3 border-slate-800 rounded-full px-3.5 py-1 text-slate-800 text-xs sm:text-sm font-bold flex items-center gap-2 shadow">
+                <span id="camStatusDot" class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
+                <span id="camStatusLabel">카메라 손인식 준비완료</span>
+            </div>
+        </div>
+
+        <!-- Center: In-Game Progress Timer Bar (Exact match to Photo #1) -->
+        <div id="inGameTimerBox" class="hidden timer-bar-box w-44 sm:w-72 h-8 sm:h-9 relative flex items-center justify-center">
+            <div id="timerFillBar" class="absolute left-0 top-0 bottom-0 bg-emerald-400 transition-all duration-300" style="width: 100%"></div>
+            <span id="timerTextLabel" class="relative z-10 text-slate-900 font-extrabold text-sm sm:text-base tracking-wide">30초</span>
+        </div>
+
+        <!-- Right: Parent Controls (1P/2P Toggle, Time, Voice/Sound, Sensitivity) -->
+        <div class="flex items-center gap-2 pointer-events-auto">
+            <button id="btnTogglePlayers" class="px-3 py-1.5 rounded-xl bg-amber-300 hover:bg-amber-200 border-3 border-slate-800 shadow-[0_3px_0_#1e293b] text-slate-900 text-xs sm:text-sm font-extrabold transition active:translate-y-0.5">
+                👶 1명 놀이
+            </button>
+            <button id="btnToggleDuration" class="px-3 py-1.5 rounded-xl bg-cyan-300 hover:bg-cyan-200 border-3 border-slate-800 shadow-[0_3px_0_#1e293b] text-slate-900 text-xs sm:text-sm font-extrabold transition active:translate-y-0.5">
+                ⏱️ 30초
+            </button>
+            <button id="btnToggleSound" title="효과음 및 음성 안내" class="w-10 h-10 rounded-xl bg-white border-3 border-slate-800 shadow-[0_3px_0_#1e293b] text-slate-800 flex items-center justify-center text-base active:translate-y-0.5">
+                <i id="iconVolume" class="fa-solid fa-volume-high text-blue-600"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- LAYER 3: LOBBY SCREEN ("어떤 게임을 할까요?" - Photo #1 Layout) -->
+    <main id="lobbyScreen" class="relative z-20 w-full h-[calc(100vh-56px)] flex flex-col items-center justify-between px-3 sm:px-8 pb-4 pt-1 pointer-events-auto">
+        
+        <!-- Warm translucent tint so child sees themselves clearly behind cards -->
+        <div class="absolute inset-0 bg-amber-50/35 backdrop-blur-[1px] -z-10 pointer-events-none"></div>
+
+        <!-- Title Header -->
+        <div class="text-center my-auto py-1">
+            <h1 class="text-cartoon text-3xl sm:text-5xl md:text-6xl tracking-wide mb-1">
+                어떤 게임을 할까요?
+            </h1>
+            <p class="text-slate-800 bg-white/85 border-2 border-slate-800 rounded-full px-4 py-1 text-xs sm:text-lg font-extrabold inline-block shadow-sm">
+                👊 주먹으로 3번 쳐서 깨거나 화면을 눌러요
+            </p>
+        </div>
+
+        <!-- 7 Arcade Cards Container (4 Top Row + 3 Bottom Row just like Photo #1) -->
+        <div class="w-full max-w-5xl my-auto flex flex-col gap-3 sm:gap-4">
+            
+            <!-- Top Row: 4 Cards -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+                
+                <!-- 1. 풍선 터뜨리기 (Red Card) -->
+                <div data-game="BALLOON" class="arcade-card game-select-card cursor-pointer bg-[#ef4444] h-36 sm:h-48 md:h-52 flex flex-col justify-between">
+                    <div class="hit-badge hidden absolute top-2 right-2 z-20 bg-amber-300 border-3 border-slate-900 text-slate-900 font-black rounded-full w-9 h-9 flex items-center justify-center text-base shadow">1/3</div>
+                    <div class="flex-1 flex items-center justify-center p-2">
+                        <!-- Yellow Balloon SVG -->
+                        <svg class="w-16 h-16 sm:w-24 sm:h-24 animate-float" viewBox="0 0 100 120">
+                            <path d="M50 92 Q45 105 53 115" stroke="#1e293b" stroke-width="4" fill="none" stroke-linecap="round"/>
+                            <ellipse cx="50" cy="48" rx="34" ry="40" fill="#fde047" stroke="#1e293b" stroke-width="5"/>
+                            <polygon points="45,88 55,88 58,94 42,94" fill="#fde047" stroke="#1e293b" stroke-width="4"/>
+                            <ellipse cx="36" cy="32" rx="7" ry="13" transform="rotate(-20 36 32)" fill="#fef9c3"/>
+                        </svg>
+                    </div>
+                    <div class="bg-white border-t-4 border-slate-800 py-1.5 sm:py-2 text-center">
+                        <div class="text-slate-900 font-extrabold text-base sm:text-xl leading-tight">풍선 터뜨리기</div>
+                        <div class="text-slate-400 text-[11px] sm:text-xs font-sans font-bold">30초 · 1~2명</div>
+                    </div>
+                </div>
+
+                <!-- 2. 얼음 깨기 (Cyan Card) -->
+                <div data-game="ICE" class="arcade-card game-select-card cursor-pointer bg-[#38bdf8] h-36 sm:h-48 md:h-52 flex flex-col justify-between">
+                    <div class="hit-badge hidden absolute top-2 right-2 z-20 bg-amber-300 border-3 border-slate-900 text-slate-900 font-black rounded-full w-9 h-9 flex items-center justify-center text-base shadow">1/3</div>
+                    <div class="flex-1 flex items-center justify-center p-2">
+                        <!-- Cracked Ice Cube SVG -->
+                        <svg class="w-16 h-16 sm:w-24 sm:h-24 animate-float" viewBox="0 0 100 100">
+                            <rect x="16" y="16" width="68" height="68" rx="14" fill="#bae6fd" stroke="#1e293b" stroke-width="5"/>
+                            <path d="M50 16 L42 42 L58 55 L46 84" stroke="#1e293b" stroke-width="4.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                            <line x1="26" y1="30" x2="36" y2="26" stroke="#ffffff" stroke-width="4" stroke-linecap="round"/>
+                        </svg>
+                    </div>
+                    <div class="bg-white border-t-4 border-slate-800 py-1.5 sm:py-2 text-center">
+                        <div class="text-slate-900 font-extrabold text-base sm:text-xl leading-tight">얼음 깨기</div>
+                        <div class="text-slate-400 text-[11px] sm:text-xs font-sans font-bold">30초 · 1~2명</div>
+                    </div>
+                </div>
+
+                <!-- 3. 땅속 친구 (Mint Card) -->
+                <div data-game="MOLE" class="arcade-card game-select-card cursor-pointer bg-[#4ade80] h-36 sm:h-48 md:h-52 flex flex-col justify-between">
+                    <div class="hit-badge hidden absolute top-2 right-2 z-20 bg-amber-300 border-3 border-slate-900 text-slate-900 font-black rounded-full w-9 h-9 flex items-center justify-center text-base shadow">1/3</div>
+                    <div class="flex-1 flex items-center justify-center p-2">
+                        <!-- Cute Mole SVG -->
+                        <svg class="w-16 h-16 sm:w-24 sm:h-24 animate-float" viewBox="0 0 100 100">
+                            <ellipse cx="50" cy="76" rx="38" ry="14" fill="#b45309" stroke="#1e293b" stroke-width="5"/>
+                            <path d="M26 74 V46 C26 24 74 24 74 46 V74 Z" fill="#d97706" stroke="#1e293b" stroke-width="5"/>
+                            <circle cx="40" cy="46" r="5" fill="#1e293b"/>
+                            <circle cx="60" cy="46" r="5" fill="#1e293b"/>
+                            <ellipse cx="50" cy="55" rx="8" ry="6" fill="#fda4af" stroke="#1e293b" stroke-width="3"/>
+                        </svg>
+                    </div>
+                    <div class="bg-white border-t-4 border-slate-800 py-1.5 sm:py-2 text-center">
+                        <div class="text-slate-900 font-extrabold text-base sm:text-xl leading-tight">땅속 친구</div>
+                        <div class="text-slate-400 text-[11px] sm:text-xs font-sans font-bold">30초 · 1~2명</div>
+                    </div>
+                </div>
+
+                <!-- 4. 별 따기 (Royal Blue Card) -->
+                <div data-game="STAR" class="arcade-card game-select-card cursor-pointer bg-[#2563eb] h-36 sm:h-48 md:h-52 flex flex-col justify-between">
+                    <div class="hit-badge hidden absolute top-2 right-2 z-20 bg-amber-300 border-3 border-slate-900 text-slate-900 font-black rounded-full w-9 h-9 flex items-center justify-center text-base shadow">1/3</div>
+                    <div class="flex-1 flex items-center justify-center p-2">
+                        <!-- Star SVG -->
+                        <svg class="w-16 h-16 sm:w-24 sm:h-24 animate-float" viewBox="0 0 100 100">
+                            <polygon points="50,12 61,36 88,39 68,57 73,84 50,70 27,84 32,57 12,39 39,36" fill="#fde047" stroke="#1e293b" stroke-width="5" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+                    <div class="bg-white border-t-4 border-slate-800 py-1.5 sm:py-2 text-center">
+                        <div class="text-slate-900 font-extrabold text-base sm:text-xl leading-tight">별 따기</div>
+                        <div class="text-slate-400 text-[11px] sm:text-xs font-sans font-bold">30초 · 1~2명</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottom Row: 3 Cards Centered -->
+            <div class="grid grid-cols-3 gap-3 sm:gap-4 max-w-4xl mx-auto w-full">
+                
+                <!-- 5. 따라쟁이 (Lavender Card) -->
+                <div data-game="POSE" class="arcade-card game-select-card cursor-pointer bg-[#a855f7] h-36 sm:h-48 md:h-52 flex flex-col justify-between">
+                    <div class="hit-badge hidden absolute top-2 right-2 z-20 bg-amber-300 border-3 border-slate-900 text-slate-900 font-black rounded-full w-9 h-9 flex items-center justify-center text-base shadow">1/3</div>
+                    <div class="flex-1 flex items-center justify-center p-2">
+                        <!-- Manse Stick Figure SVG -->
+                        <svg class="w-16 h-16 sm:w-24 sm:h-24 animate-float" viewBox="0 0 100 100">
+                            <circle cx="50" cy="24" r="11" fill="#1e293b"/>
+                            <path d="M50 36 V66 M50 46 L24 22 M50 46 L76 22 M50 66 L34 90 M50 66 L66 90" stroke="#1e293b" stroke-width="7" stroke-linecap="round"/>
+                        </svg>
+                    </div>
+                    <div class="bg-white border-t-4 border-slate-800 py-1.5 sm:py-2 text-center">
+                        <div class="text-slate-900 font-extrabold text-base sm:text-xl leading-tight">따라쟁이</div>
+                        <div class="text-slate-400 text-[11px] sm:text-xs font-sans font-bold">만세 포즈 놀이</div>
+                    </div>
+                </div>
+
+                <!-- 6. 헬리콥터 (Sky Blue Card) -->
+                <div data-game="HELI" class="arcade-card game-select-card cursor-pointer bg-[#22d3ee] h-36 sm:h-48 md:h-52 flex flex-col justify-between">
+                    <div class="hit-badge hidden absolute top-2 right-2 z-20 bg-amber-300 border-3 border-slate-900 text-slate-900 font-black rounded-full w-9 h-9 flex items-center justify-center text-base shadow">1/3</div>
+                    <div class="flex-1 flex items-center justify-center p-2">
+                        <!-- Helicopter SVG -->
+                        <svg class="w-16 h-16 sm:w-24 sm:h-24 animate-float" viewBox="0 0 100 100">
+                            <line x1="20" y1="22" x2="80" y2="22" stroke="#1e293b" stroke-width="6" stroke-linecap="round"/>
+                            <line x1="50" y1="22" x2="50" y2="36" stroke="#1e293b" stroke-width="5"/>
+                            <ellipse cx="46" cy="54" rx="24" ry="18" fill="#34d399" stroke="#1e293b" stroke-width="5"/>
+                            <path d="M70 54 H88 L92 44" stroke="#ef4444" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                            <line x1="30" y1="78" x2="64" y2="78" stroke="#1e293b" stroke-width="5" stroke-linecap="round"/>
+                        </svg>
+                    </div>
+                    <div class="bg-white border-t-4 border-slate-800 py-1.5 sm:py-2 text-center">
+                        <div class="text-slate-900 font-extrabold text-base sm:text-xl leading-tight">헬리콥터</div>
+                        <div class="text-slate-400 text-[11px] sm:text-xs font-sans font-bold">프로펠러 돌리기</div>
+                    </div>
+                </div>
+
+                <!-- 7. 짝 맞추기 (Pink Card) -->
+                <div data-game="PAIR" class="arcade-card game-select-card cursor-pointer bg-[#f472b6] h-36 sm:h-48 md:h-52 flex flex-col justify-between">
+                    <div class="hit-badge hidden absolute top-2 right-2 z-20 bg-amber-300 border-3 border-slate-900 text-slate-900 font-black rounded-full w-9 h-9 flex items-center justify-center text-base shadow">1/3</div>
+                    <div class="flex-1 flex items-center justify-center p-2">
+                        <!-- Pair Cards SVG -->
+                        <svg class="w-16 h-16 sm:w-24 sm:h-24 animate-float" viewBox="0 0 100 100">
+                            <rect x="18" y="22" width="36" height="52" rx="6" transform="rotate(-10 36 48)" fill="#2563eb" stroke="#1e293b" stroke-width="4.5"/>
+                            <rect x="46" y="22" width="36" height="52" rx="6" transform="rotate(8 64 48)" fill="#ffffff" stroke="#1e293b" stroke-width="4.5"/>
+                            <polygon points="64,34 68,43 77,44 70,50 72,59 64,54 56,59 58,50 51,44 60,43" fill="#fde047" stroke="#1e293b" stroke-width="2.5"/>
+                        </svg>
+                    </div>
+                    <div class="bg-white border-t-4 border-slate-800 py-1.5 sm:py-2 text-center">
+                        <div class="text-slate-900 font-extrabold text-base sm:text-xl leading-tight">짝 맞추기</div>
+                        <div class="text-slate-400 text-[11px] sm:text-xs font-sans font-bold">같은 그림 찾기</div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Footer Tip -->
+        <div class="text-xs sm:text-sm text-slate-800 bg-white/80 px-4 py-1 rounded-full border border-slate-400 font-bold">
+            💡 핑크색 손 동그라미(⭕)를 카드 위에 올리고 흔들면 주먹으로 쾅쾅 깨집니다! (마우스 클릭도 바로 작동)
+        </div>
+    </main>
+
+    <!-- LAYER 4: RESULT SCREEN ("잘했어요! 모두 해냈어요" - Exact Match to Photo #2) -->
+    <section id="resultScreen" class="hidden fixed inset-0 z-30 bg-[#2563eb]/90 backdrop-blur-sm flex flex-col items-center justify-between p-4 sm:p-8">
+        
+        <div class="text-center mt-4">
+            <p class="text-white/90 text-sm sm:text-lg font-bold mb-1">주먹으로 3번 쳐서 깨거나 화면을 눌러요</p>
+            <h2 class="text-cartoon text-5xl sm:text-7xl tracking-wide">잘했어요!</h2>
+            <p id="resultSubText" class="text-cartoon-sm text-2xl sm:text-3xl mt-1">모두 해냈어요</p>
+        </div>
+
+        <!-- Center Polaroid Action Snapshot (Just like Photo #2!) -->
+        <div class="polaroid-frame my-auto transform -rotate-1 hover:rotate-0 transition">
+            <div class="w-44 h-44 sm:w-56 sm:h-56 bg-slate-900 rounded-xl overflow-hidden border-2 border-slate-800 relative">
+                <img id="polaroidImg" src="https://placehold.co/320x240/1e293b/ffffff?text=Great+Job!" alt="Play Snapshot" class="w-full h-full object-cover">
+                <div class="absolute bottom-2 right-2 bg-amber-400 border-2 border-slate-900 text-slate-900 text-xs font-black px-2 py-0.5 rounded-full">
+                    점수: <span id="resultFinalScore">0</span>점
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom 2 Giant Arcade Buttons (Red "다시 하기" & Blue "게임 고르기") -->
+        <div class="grid grid-cols-2 gap-4 sm:gap-6 w-full max-w-3xl mb-2">
+            
+            <!-- Left Red Card: 다시 하기 -->
+            <div id="btnResultReplay" data-action="REPLAY" class="arcade-card result-action-card cursor-pointer bg-[#ef4444] h-36 sm:h-44 flex flex-col justify-between">
+                <div class="hit-badge hidden absolute top-2 right-2 z-20 bg-amber-300 border-3 border-slate-900 text-slate-900 font-black rounded-full w-9 h-9 flex items-center justify-center text-base shadow">1/3</div>
+                <div class="flex-1 flex items-center justify-center">
+                    <i class="fa-solid fa-rotate-right text-white text-5xl sm:text-6xl drop-shadow-[0_4px_0_#1e293b]"></i>
+                </div>
+                <div class="bg-white border-t-4 border-slate-800 py-2.5 text-center">
+                    <span class="text-slate-900 font-extrabold text-xl sm:text-2xl">다시 하기</span>
+                </div>
+            </div>
+
+            <!-- Right Blue Card: 게임 고르기 -->
+            <div id="btnResultLobby" data-action="LOBBY" class="arcade-card result-action-card cursor-pointer bg-[#3b82f6] h-36 sm:h-44 flex flex-col justify-between">
+                <div class="hit-badge hidden absolute top-2 right-2 z-20 bg-amber-300 border-3 border-slate-900 text-slate-900 font-black rounded-full w-9 h-9 flex items-center justify-center text-base shadow">1/3</div>
+                <div class="flex-1 flex items-center justify-center">
+                    <!-- 4 Color Grid Icon -->
+                    <div class="grid grid-cols-2 gap-1.5 p-2 bg-slate-900 rounded-2xl border-2 border-slate-900">
+                        <span class="w-6 h-6 sm:w-7 sm:h-7 rounded-md bg-red-400 block"></span>
+                        <span class="w-6 h-6 sm:w-7 sm:h-7 rounded-md bg-cyan-300 block"></span>
+                        <span class="w-6 h-6 sm:w-7 sm:h-7 rounded-md bg-amber-300 block"></span>
+                        <span class="w-6 h-6 sm:w-7 sm:h-7 rounded-md bg-emerald-300 block"></span>
+                    </div>
+                </div>
+                <div class="bg-white border-t-4 border-slate-800 py-2.5 text-center">
+                    <span class="text-slate-900 font-extrabold text-xl sm:text-2xl">게임 고르기</span>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- MAIN AR VISION & 7 MINI-GAMES ENGINE -->
+    <script type="module">
+        // =========================================================================
+        // 1. CHEERFUL SOUND & KOREAN TTS VOICE ENGINE (For 30-Month-Old Toddler)
+        // =========================================================================
+        class KidSoundEngine {
+            constructor() {
+                this.ctx = null;
+                this.muted = false;
+                this.lastSpeechTime = 0;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioCtx();
+                }
+                if (this.ctx.state === 'suspended') this.ctx.resume();
+            }
+
+            speakKorean(text, force = false) {
+                if (this.muted || !('speechSynthesis' in window)) return;
+                const now = performance.now();
+                if (!force && now - this.lastSpeechTime < 1800) return;
+                this.lastSpeechTime = now;
+
+                try {
+                    window.speechSynthesis.cancel();
+                    const utter = new SpeechSynthesisUtterance(text);
+                    utter.lang = 'ko-KR';
+                    utter.rate = 1.05;
+                    utter.pitch = 1.3; // Friendly cheerful high pitch
+                    window.speechSynthesis.speak(utter);
+                } catch (e) {}
+            }
+
+            playPop(pitchOffset = 0) {
+                if (this.muted) return;
+                this.init();
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(420 + pitchOffset, now);
+                osc.frequency.exponentialRampToValueAtTime(980 + pitchOffset, now + 0.11);
+                gain.gain.setValueAtTime(0.35, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.12);
+            }
+
+            playCrack() {
+                if (this.muted) return;
+                this.init();
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(720, now);
+                osc.frequency.exponentialRampToValueAtTime(220, now + 0.12);
+                gain.gain.setValueAtTime(0.35, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.13);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.13);
+            }
+
+            playNote(noteIndex = 0) {
+                if (this.muted) return;
+                this.init();
+                const scale = [523.25, 587.33, 659.25, 698.46, 783.99, 880.00, 987.77, 1046.50]; // C5 Major
+                const freq = scale[noteIndex % scale.length];
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(freq, now);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.36);
+            }
+
+            playFanfare() {
+                if (this.muted) return;
+                this.init();
+                const now = this.ctx.currentTime;
+                [523.25, 659.25, 783.99, 1046.50].forEach((f, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(f, now + idx * 0.09);
+                    gain.gain.setValueAtTime(0.28, now + idx * 0.09);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.09 + 0.38);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now + idx * 0.09);
+                    osc.stop(now + idx * 0.09 + 0.4);
+                });
+            }
+        }
+
+        const sound = new KidSoundEngine();
+
+        // =========================================================================
+        // 2. STATE & EXACT OBJECT-FIT COVER COORDINATE TRANSFORMER
+        // =========================================================================
+        const videoEl = document.getElementById('webcamVideo');
+        const diffCanvas = document.getElementById('motionDiffCanvas');
+        const diffCtx = diffCanvas.getContext('2d', { willReadFrequently: true });
+        const snapCanvas = document.getElementById('snapshotCanvas');
+        const snapCtx = snapCanvas.getContext('2d');
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const STATE = {
+            screen: 'LOBBY', // 'LOBBY' | 'PLAYING' | 'RESULT'
+            currentGame: 'ICE', // 'BALLOON' | 'ICE' | 'MOLE' | 'STAR' | 'POSE' | 'HELI' | 'PAIR'
+            isTwoPlayer: false,
+            roundDuration: 30,
+            timeRemaining: 30,
+            cameraReady: false,
+            aiReady: false,
+
+            score1P: 0,
+            score2P: 0,
+            noteStep: 0,
+            snapshotTaken: false,
+
+            // Tracked Pink Hand Cursors: { id, x, y, vx, vy, speed, lastUpdate }
+            cursors: [],
+            heads: [],
+
+            // Active Game Entities
+            entities: [],
+            particles: [],
+            popTexts: [],
+
+            // Specific Mode State
+            posePrompt: null,
+            helicopter: { x: 400, y: 300, vy: 0, rotorAngle: 0 },
+            flippedCards: []
+        };
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        /**
+         * CRITICAL FIX FOR PHOTO #3:
+         * Converts normalized [0..1] video coordinates to exact on-screen pixel coordinates
+         * accounting for `object-fit: cover` scaling and cropping + horizontal mirror flip!
+         */
+        function videoToScreenCoords(normX, normY) {
+            const cw = canvas.width;
+            const ch = canvas.height;
+            const vw = videoEl.videoWidth || 1280;
+            const vh = videoEl.videoHeight || 720;
+
+            const scale = Math.max(cw / vw, ch / vh);
+            const scaledW = vw * scale;
+            const scaledH = vh * scale;
+            const offsetX = (cw - scaledW) / 2;
+            const offsetY = (ch - scaledH) / 2;
+
+            const mirroredX = 1.0 - normX; // Mirror horizontally
+            return {
+                x: offsetX + mirroredX * scaledW,
+                y: offsetY + normY * scaledH
+            };
+        }
+
+        // =========================================================================
+        // 3. CAMERA + MEDIAPIPE POSE + LOCALIZED OPTICAL GRID TRACKER
+        // =========================================================================
+        let poseLandmarker = null;
+        let prevFrameData = null;
+        let lastVideoTime = -1;
+        const cursorStore = new Map();
+
+        async function initCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+                    audio: false
+                });
+                videoEl.srcObject = stream;
+                await videoEl.play();
+                STATE.cameraReady = true;
+                document.getElementById('camStatusLabel').textContent = '카메라 손인식 작동중';
+            } catch (err) {
+                console.warn('Webcam fallback to touch/mouse:', err);
+                STATE.cameraReady = false;
+                document.getElementById('camStatusLabel').textContent = '터치/마우스 모드';
+            }
+        }
+
+        async function initPoseAI() {
+            try {
+                const vision = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3');
+                const filesetResolver = await vision.FilesetResolver.forVisionTasks(
+                    'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm'
+                );
+                poseLandmarker = await vision.PoseLandmarker.createFromOptions(filesetResolver, {
+                    baseOptions: {
+                        modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',
+                        delegate: 'GPU'
+                    },
+                    runningMode: 'VIDEO',
+                    numPoses: 2
+                });
+                STATE.aiReady = true;
+            } catch (e) {
+                console.warn('Pose AI fallback to Optical Flow:', e);
+                STATE.aiReady = false;
+            }
+        }
+
+        function upsertCursor(id, screenX, screenY, isMotionBurst = false) {
+            const now = performance.now();
+            let c = cursorStore.get(id);
+            if (!c) {
+                c = { id, x: screenX, y: screenY, vx: 0, vy: 0, speed: isMotionBurst ? 15 : 5, lastUpdate: now };
+                cursorStore.set(id, c);
+            } else {
+                const nx = c.x * 0.25 + screenX * 0.75; // Fast response for toddler hands
+                const ny = c.y * 0.25 + screenY * 0.75;
+                c.vx = nx - c.x;
+                c.vy = ny - c.y;
+                c.speed = Math.hypot(c.vx, c.vy) + (isMotionBurst ? 10 : 0);
+                c.x = nx;
+                c.y = ny;
+                c.lastUpdate = now;
+            }
+        }
+
+        function detectPoseHands() {
+            if (!STATE.cameraReady || !STATE.aiReady || !poseLandmarker || videoEl.readyState < 2) return;
+            if (videoEl.currentTime === lastVideoTime) return;
+            lastVideoTime = videoEl.currentTime;
+
+            try {
+                const res = poseLandmarker.detectForVideo(videoEl, performance.now());
+                STATE.heads = [];
+
+                if (res && res.landmarks) {
+                    res.landmarks.forEach((lm, idx) => {
+                        // Head (Nose 0)
+                        if (lm[0]) {
+                            const headPt = videoToScreenCoords(lm[0].x, lm[0].y);
+                            STATE.heads.push(headPt);
+                        }
+
+                        // Compute True Palm Center by blending Wrist(15/16) + Index(19/20) + Pinky(17/18)
+                        const trackLimb = (wristIdx, pinkyIdx, indexIdx, elbowIdx, tag) => {
+                            const w = lm[wristIdx];
+                            const p = lm[pinkyIdx];
+                            const ind = lm[indexIdx];
+                            const elb = lm[elbowIdx];
+
+                            if (ind && w && (w.visibility > 0.2 || ind.visibility > 0.2)) {
+                                // Palm center slightly beyond wrist toward fingers
+                                const palmX = w.x * 0.3 + ind.x * 0.45 + (p ? p.x * 0.25 : ind.x * 0.25);
+                                const palmY = w.y * 0.3 + ind.y * 0.45 + (p ? p.y * 0.25 : ind.y * 0.25);
+                                const pt = videoToScreenCoords(palmX, palmY);
+                                upsertCursor(`pose_${idx}_${tag}`, pt.x, pt.y, false);
+                            } else if (elb && elb.visibility > 0.3) {
+                                // Close-up fallback if hand goes slightly out of frame
+                                const pt = videoToScreenCoords(elb.x, elb.y);
+                                upsertCursor(`pose_${idx}_${tag}`, pt.x, pt.y, false);
+                            }
+                        };
+
+                        trackLimb(15, 17, 19, 13, 'L');
+                        trackLimb(16, 18, 20, 14, 'R');
+                    });
+                }
+            } catch (e) {}
+        }
+
+        // High-precision localized grid motion detector (catches fast hand waves even close-up)
+        function detectOpticalMotionGrid() {
+            if (!STATE.cameraReady || videoEl.readyState < 2) return;
+            const w = diffCanvas.width;
+            const h = diffCanvas.height;
+
+            diffCtx.drawImage(videoEl, 0, 0, w, h);
+            const frame = diffCtx.getImageData(0, 0, w, h);
+            const data = frame.data;
+
+            if (prevFrameData) {
+                // Find the strongest motion hotspots in Left & Right halves
+                let bestL = { score: 0, x: 0, y: 0 };
+                let bestR = { score: 0, x: 0, y: 0 };
+                const cols = 12;
+                const rows = 9;
+                const cellW = w / cols;
+                const cellH = h / rows;
+
+                for (let r = 0; r < rows; r++) {
+                    for (let c = 0; c < cols; c++) {
+                        let diffSum = 0;
+                        const startX = Math.floor(c * cellW);
+                        const startY = Math.floor(r * cellH);
+
+                        for (let y = startY; y < startY + cellH; y += 2) {
+                            for (let x = startX; x < startX + cellW; x += 2) {
+                                const i = (y * w + x) * 4;
+                                const d = Math.abs(data[i] - prevFrameData[i]) +
+                                          Math.abs(data[i + 1] - prevFrameData[i + 1]) +
+                                          Math.abs(data[i + 2] - prevFrameData[i + 2]);
+                                if (d > 70) diffSum++;
+                            }
+                        }
+
+                        if (diffSum > 8) {
+                            const normX = (c + 0.5) / cols;
+                            const normY = (r + 0.5) / rows;
+                            // Remember raw video is unmirrored: normX > 0.5 is user's left screen side
+                            if (normX > 0.5 && diffSum > bestL.score) {
+                                bestL = { score: diffSum, x: normX, y: normY };
+                            } else if (normX <= 0.5 && diffSum > bestR.score) {
+                                bestR = { score: diffSum, x: normX, y: normY };
+                            }
+                        }
+                    }
+                }
+
+                if (bestL.score > 10) {
+                    const pt = videoToScreenCoords(bestL.x, bestL.y);
+                    upsertCursor('motion_L', pt.x, pt.y, true);
+                }
+                if (bestR.score > 10) {
+                    const pt = videoToScreenCoords(bestR.x, bestR.y);
+                    upsertCursor('motion_R', pt.x, pt.y, true);
+                }
+            }
+            prevFrameData = new Uint8ClampedArray(data);
+        }
+
+        // Mouse & Touch Pointer Support
+        window.addEventListener('pointerMove', (e) => {
+            upsertCursor('mouse', e.clientX, e.clientY, true);
+        });
+        window.addEventListener('pointermove', (e) => {
+            upsertCursor('mouse', e.clientX, e.clientY, true);
+        });
+        window.addEventListener('pointerdown', (e) => {
+            sound.init();
+            upsertCursor('mouse', e.clientX, e.clientY, true);
+        });
+
+        // Capture a fun Polaroid snapshot from webcam during gameplay
+        function takeActionSnapshot() {
+            if (!STATE.cameraReady || videoEl.readyState < 2) return;
+            const sw = snapCanvas.width;
+            const sh = snapCanvas.height;
+            snapCtx.save();
+            snapCtx.translate(sw, 0);
+            snapCtx.scale(-1, 1);
+            snapCtx.drawImage(videoEl, 0, 0, sw, sh);
+            snapCtx.restore();
+            try {
+                document.getElementById('polaroidImg').src = snapCanvas.toDataURL('image/jpeg', 0.85);
+                STATE.snapshotTaken = true;
+            } catch (e) {}
+        }
+
+        // =========================================================================
+        // 4. LOBBY & RESULT 3-PUNCH CARD INTERACTION (Just like Photo #1 & #2)
+        // =========================================================================
+        const cardHitState = new Map();
+
+        function checkDomCardHits(selector, onCardTriggered) {
+            const cards = document.querySelectorAll(selector);
+            const now = performance.now();
+
+            cards.forEach((card, idx) => {
+                const rect = card.getBoundingClientRect();
+                let st = cardHitState.get(card) || { hits: 0, lastHit: 0 };
+
+                for (const c of STATE.cursors) {
+                    if (c.x >= rect.left && c.x <= rect.right && c.y >= rect.top && c.y <= rect.bottom) {
+                        if (now - st.lastHit > 380 && c.speed > 2.2) {
+                            st.hits++;
+                            st.lastHit = now;
+                            cardHitState.set(card, st);
+
+                            // Bounce visual & badge
+                            card.classList.add('hit-bounce');
+                            setTimeout(() => card.classList.remove('hit-bounce'), 160);
+
+                            const badge = card.querySelector('.hit-badge');
+                            if (badge) {
+                                badge.classList.remove('hidden');
+                                badge.textContent = `${st.hits}/3`;
+                            }
+
+                            sound.playCrack();
+                            spawnParticles((rect.left + rect.right) / 2, (rect.top + rect.bottom) / 2, '#fde047', 10);
+
+                            if (st.hits >= 3) {
+                                st.hits = 0;
+                                if (badge) badge.classList.add('hidden');
+                                onCardTriggered(card);
+                            }
+                            break;
+                        }
+                    }
+                }
+            });
+        }
+
+        // Direct Click / Tap on Lobby Cards starts immediately for convenience
+        document.querySelectorAll('.game-select-card').forEach(card => {
+            card.addEventListener('click', () => {
+                sound.init();
+                startGameMode(card.dataset.game);
+            });
+        });
+
+        document.getElementById('btnResultReplay').addEventListener('click', () => {
+            startGameMode(STATE.currentGame);
+        });
+        document.getElementById('btnResultLobby').addEventListener('click', () => {
+            returnToLobby();
+        });
+
+        // =========================================================================
+        // 5. ALL 7 KID-FRIENDLY MINI-GAMES IMPLEMENTATION
+        // =========================================================================
+        const GAME_NAMES_KO = {
+            BALLOON: '풍선 터뜨리기! 풍선을 팡팡 쳐보세요!',
+            ICE: '얼음 깨기! 얼음을 주먹으로 쾅쾅 깨보세요!',
+            MOLE: '땅속 친구! 두더지 친구들을 콩콩 쓰다듬어 주세요!',
+            STAR: '별 따기! 두 손을 높이 들어 반짝이는 별을 따보세요!',
+            POSE: '따라쟁이! 화면의 포즈를 똑같이 따라 해보세요!',
+            HELI: '헬리콥터! 손을 움직여 과일과 별을 먹어보세요!',
+            PAIR: '짝 맞추기! 카드를 쳐서 같은 동물 친구를 찾아보세요!'
+        };
+
+        let roundTimer = null;
+
+        function startGameMode(gameKey) {
+            STATE.currentGame = gameKey;
+            STATE.screen = 'PLAYING';
+            STATE.score1P = 0;
+            STATE.score2P = 0;
+            STATE.timeRemaining = STATE.roundDuration;
+            STATE.entities = [];
+            STATE.particles = [];
+            STATE.popTexts = [];
+            STATE.flippedCards = [];
+            STATE.snapshotTaken = false;
+
+            // Update UI visibility
+            document.getElementById('lobbyScreen').classList.add('hidden');
+            document.getElementById('resultScreen').classList.add('hidden');
+            document.getElementById('lobbyTopBadge').classList.add('hidden');
+            document.getElementById('btnBackToLobby').classList.remove('hidden');
+            document.getElementById('inGameScoreGroup').classList.remove('hidden');
+            document.getElementById('inGameTimerBox').classList.remove('hidden');
+            document.getElementById('hudScore2PPill').classList.toggle('hidden', !STATE.isTwoPlayer);
+
+            updateHudCounters();
+            sound.playFanfare();
+            sound.speakKorean(GAME_NAMES_KO[gameKey], true);
+
+            // Initialize mode-specific entities
+            setupModeEntities(gameKey);
+
+            if (roundTimer) clearInterval(roundTimer);
+            roundTimer = setInterval(() => {
+                if (STATE.screen !== 'PLAYING') return;
+                STATE.timeRemaining--;
+                updateHudCounters();
+
+                if (STATE.timeRemaining === Math.floor(STATE.roundDuration / 2) && !STATE.snapshotTaken) {
+                    takeActionSnapshot();
+                }
+
+                if (STATE.timeRemaining <= 0) {
+                    finishGameRound();
+                }
+            }, 1000);
+        }
+
+        function returnToLobby() {
+            STATE.screen = 'LOBBY';
+            if (roundTimer) clearInterval(roundTimer);
+            STATE.entities = [];
+            document.getElementById('lobbyScreen').classList.remove('hidden');
+            document.getElementById('resultScreen').classList.add('hidden');
+            document.getElementById('lobbyTopBadge').classList.remove('hidden');
+            document.getElementById('btnBackToLobby').classList.add('hidden');
+            document.getElementById('inGameScoreGroup').classList.add('hidden');
+            document.getElementById('inGameTimerBox').classList.add('hidden');
+            cardHitState.clear();
+            document.querySelectorAll('.hit-badge').forEach(b => b.classList.add('hidden'));
+        }
+
+        function finishGameRound() {
+            if (!STATE.snapshotTaken) takeActionSnapshot();
+            STATE.screen = 'RESULT';
+            if (roundTimer) clearInterval(roundTimer);
+
+            document.getElementById('btnBackToLobby').classList.add('hidden');
+            document.getElementById('inGameScoreGroup').classList.add('hidden');
+            document.getElementById('inGameTimerBox').classList.add('hidden');
+            document.getElementById('resultFinalScore').textContent = STATE.score1P + STATE.score2P;
+            document.getElementById('resultScreen').classList.remove('hidden');
+
+            cardHitState.clear();
+            document.querySelectorAll('.hit-badge').forEach(b => b.classList.add('hidden'));
+
+            sound.playFanfare();
+            sound.speakKorean('우와! 정말 잘했어요! 모두 해냈어요!', true);
+        }
+
+        function addPoint(x, y, pts = 1) {
+            if (STATE.isTwoPlayer && x > canvas.width * 0.5) {
+                STATE.score2P += pts;
+            } else {
+                STATE.score1P += pts;
+            }
+            updateHudCounters();
+
+            const total = STATE.score1P + STATE.score2P;
+            if (total === 5) takeActionSnapshot();
+            if (total % 8 === 0) {
+                const cheers = ['우와 최고예요!', '참 잘했어요!', '대단해요!', '신난다!'];
+                sound.speakKorean(cheers[Math.floor(Math.random() * cheers.length)]);
+            }
+        }
+
+        function updateHudCounters() {
+            document.getElementById('hudScore1P').textContent = STATE.score1P;
+            document.getElementById('hudScore2P').textContent = STATE.score2P;
+            const pct = Math.max(0, (STATE.timeRemaining / STATE.roundDuration) * 100);
+            document.getElementById('timerFillBar').style.width = `${pct}%`;
+            document.getElementById('timerTextLabel').textContent = `${STATE.timeRemaining}초`;
+        }
+
+        // Setup initial targets for each of the 7 games
+        function setupModeEntities(mode) {
+            const w = canvas.width;
+            const h = canvas.height;
+
+            if (mode === 'BALLOON') {
+                for (let i = 0; i < 6; i++) spawnBalloon();
+            } else if (mode === 'ICE') {
+                for (let i = 0; i < 3; i++) spawnIceBlock();
+            } else if (mode === 'MOLE') {
+                // 6 fixed cute mole holes
+                const positions = [
+                    { x: w * 0.25, y: h * 0.48 },
+                    { x: w * 0.50, y: h * 0.44 },
+                    { x: w * 0.75, y: h * 0.48 },
+                    { x: w * 0.28, y: h * 0.76 },
+                    { x: w * 0.50, y: h * 0.76 },
+                    { x: w * 0.72, y: h * 0.76 }
+                ];
+                positions.forEach((p, idx) => {
+                    STATE.entities.push({
+                        kind: 'MOLE_HOLE',
+                        x: p.x,
+                        y: p.y,
+                        radius: 68,
+                        state: idx % 2 === 0 ? 'UP' : 'DOWN',
+                        timer: 40 + idx * 20,
+                        isGolden: idx === 1,
+                        dizzyTimer: 0
+                    });
+                });
+            } else if (mode === 'STAR') {
+                for (let i = 0; i < 5; i++) spawnStar();
+            } else if (mode === 'POSE') {
+                nextPosePrompt();
+            } else if (mode === 'HELI') {
+                STATE.helicopter = { x: w * 0.5, y: h * 0.5, vy: 0, rotorAngle: 0 };
+                for (let i = 0; i < 5; i++) spawnHeliItem();
+            } else if (mode === 'PAIR') {
+                setupPairCards();
+            }
+        }
+
+        function spawnBalloon() {
+            const w = canvas.width;
+            const h = canvas.height;
+            const colors = ['#ef4444', '#fde047', '#38bdf8', '#a855f7', '#4ade80', '#fb923c'];
+            const icons = ['🎈', '🐶', '🦖', '🍓', '🚗', '🌈'];
+            const idx = Math.floor(Math.random() * colors.length);
+            STATE.entities.push({
+                kind: 'BALLOON',
+                x: 100 + Math.random() * (w - 200),
+                y: h + 60 + Math.random() * 80,
+                vy: -(1.8 + Math.random() * 1.8),
+                wobble: Math.random() * Math.PI * 2,
+                radius: 64,
+                color: colors[idx],
+                sticker: icons[idx]
+            });
+        }
+
+        function spawnIceBlock() {
+            const w = canvas.width;
+            const h = canvas.height;
+            const prizes = ['🦖', '🚗', '🍦', '🐶', '👑', '🍓', '🚀'];
+            STATE.entities.push({
+                kind: 'ICE_BLOCK',
+                x: 130 + Math.random() * (w - 260),
+                y: 150 + Math.random() * (h - 280),
+                radius: 82,
+                hp: 3,
+                maxHp: 3,
+                cooldown: 0,
+                prize: prizes[Math.floor(Math.random() * prizes.length)]
+            });
+        }
+
+        function spawnStar() {
+            const w = canvas.width;
+            const h = canvas.height;
+            // Stars appear in upper 55% of screen so toddler reaches up ("만세!")
+            STATE.entities.push({
+                kind: 'STAR',
+                x: 110 + Math.random() * (w - 220),
+                y: 120 + Math.random() * (h * 0.42),
+                radius: 62,
+                scale: 1,
+                rot: Math.random() * Math.PI
+            });
+        }
+
+        function nextPosePrompt() {
+            const w = canvas.width;
+            const h = canvas.height;
+            const poses = [
+                {
+                    title: '🙌 양손 높이 만세!',
+                    voice: '양손 높이 만세 해보세요!',
+                    targets: [
+                        { x: w * 0.34, y: h * 0.25, r: 78, hit: false },
+                        { x: w * 0.66, y: h * 0.25, r: 78, hit: false }
+                    ]
+                },
+                {
+                    title: '✈️ 비행기 팔 쫙 벌리기!',
+                    voice: '비행기처럼 팔을 양옆으로 쫙 벌려보세요!',
+                    targets: [
+                        { x: w * 0.16, y: h * 0.50, r: 78, hit: false },
+                        { x: w * 0.84, y: h * 0.50, r: 78, hit: false }
+                    ]
+                },
+                {
+                    title: '🙆‍♂️ 머리 위에 동그라미!',
+                    voice: '머리 위에 손을 얹어보세요!',
+                    targets: [
+                        { x: w * 0.50, y: h * 0.24, r: 88, hit: false }
+                    ]
+                }
+            ];
+            STATE.posePrompt = {
+                ...poses[Math.floor(Math.random() * poses.length)],
+                progress: 0
+            };
+            sound.speakKorean(STATE.posePrompt.voice, true);
+        }
+
+        function spawnHeliItem() {
+            const w = canvas.width;
+            const h = canvas.height;
+            const items = ['🍎', '⭐', '🍌', '🎈', '🍓'];
+            STATE.entities.push({
+                kind: 'HELI_ITEM',
+                x: 110 + Math.random() * (w - 220),
+                y: 130 + Math.random() * (h - 240),
+                radius: 55,
+                icon: items[Math.floor(Math.random() * items.length)]
+            });
+        }
+
+        function setupPairCards() {
+            const w = canvas.width;
+            const h = canvas.height;
+            const pairs = ['🐶', '🐶', '🦖', '🦖', '🚗', '🚗'];
+            pairs.sort(() => Math.random() - 0.5);
+
+            const cols = 3;
+            const rows = 2;
+            const startX = w * 0.24;
+            const stepX = w * 0.26;
+            const startY = h * 0.38;
+            const stepY = h * 0.32;
+
+            STATE.entities = [];
+            STATE.flippedCards = [];
+
+            pairs.forEach((icon, i) => {
+                const c = i % cols;
+                const r = Math.floor(i / cols);
+                STATE.entities.push({
+                    kind: 'PAIR_CARD',
+                    id: i,
+                    x: startX + c * stepX,
+                    y: startY + r * stepY,
+                    w: 130,
+                    h: 160,
+                    icon,
+                    state: 'HIDDEN', // 'HIDDEN' | 'FLIPPED' | 'MATCHED'
+                    cooldown: 0
+                });
+            });
+        }
+
+        // =========================================================================
+        // 6. GAME PHYSICS & COLLISION UPDATE
+        // =========================================================================
+        function spawnParticles(x, y, color, count = 14) {
+            for (let i = 0; i < count; i++) {
+                const ang = Math.random() * Math.PI * 2;
+                const spd = 3 + Math.random() * 9;
+                STATE.particles.push({
+                    x, y,
+                    vx: Math.cos(ang) * spd,
+                    vy: Math.sin(ang) * spd - 2,
+                    r: 6 + Math.random() * 10,
+                    color,
+                    alpha: 1
+                });
+            }
+        }
+
+        function spawnPopText(x, y, text, color = '#fde047') {
+            STATE.popTexts.push({ x, y, text, color, alpha: 1 });
+        }
+
+        function updateGame() {
+            const now = performance.now();
+            // Prune stale cursors
+            STATE.cursors = [];
+            for (const [key, c] of cursorStore.entries()) {
+                if (now - c.lastUpdate > 420) {
+                    cursorStore.delete(key);
+                } else {
+                    c.speed *= 0.9;
+                    STATE.cursors.push(c);
+                }
+            }
+
+            if (STATE.screen === 'LOBBY') {
+                checkDomCardHits('.game-select-card', (card) => startGameMode(card.dataset.game));
+                return;
+            }
+            if (STATE.screen === 'RESULT') {
+                checkDomCardHits('.result-action-card', (card) => {
+                    if (card.dataset.action === 'REPLAY') startGameMode(STATE.currentGame);
+                    else returnToLobby();
+                });
+                return;
+            }
+
+            // IN-GAME UPDATES BY MODE
+            const mode = STATE.currentGame;
+
+            if (mode === 'BALLOON') {
+                if (STATE.entities.length < 6) spawnBalloon();
+                for (let i = STATE.entities.length - 1; i >= 0; i--) {
+                    const b = STATE.entities[i];
+                    b.y += b.vy;
+                    b.wobble += 0.06;
+                    b.x += Math.sin(b.wobble) * 1.4;
+                    if (b.y < -80) {
+                        STATE.entities.splice(i, 1);
+                        continue;
+                    }
+                    for (const c of STATE.cursors) {
+                        if (Math.hypot(c.x - b.x, c.y - b.y) < b.radius + 36) {
+                            sound.playPop(Math.random() * 200);
+                            spawnParticles(b.x, b.y, b.color, 18);
+                            spawnPopText(b.x, b.y, `팡! ${b.sticker}`);
+                            addPoint(b.x, b.y, 1);
+                            STATE.entities.splice(i, 1);
+                            break;
+                        }
+                    }
+                }
+            } else if (mode === 'ICE') {
+                if (STATE.entities.length < 3) spawnIceBlock();
+                for (let i = STATE.entities.length - 1; i >= 0; i--) {
+                    const ice = STATE.entities[i];
+                    if (ice.cooldown > 0) ice.cooldown--;
+                    if (ice.cooldown <= 0) {
+                        for (const c of STATE.cursors) {
+                            if (Math.hypot(c.x - ice.x, c.y - ice.y) < ice.radius + 38) {
+                                ice.hp--;
+                                ice.cooldown = 12; // Brief cooldown so 3 distinct swings break it
+                                sound.playCrack();
+                                spawnParticles(ice.x, ice.y, '#7dd3fc', 12);
+
+                                if (ice.hp <= 0) {
+                                    sound.playNote(STATE.noteStep++);
+                                    spawnParticles(ice.x, ice.y, '#fde047', 24);
+                                    spawnPopText(ice.x, ice.y, `와! ${ice.prize} 나왔다!`);
+                                    addPoint(ice.x, ice.y, 1);
+                                    STATE.entities.splice(i, 1);
+                                } else {
+                                    spawnPopText(ice.x, ice.y - 20, '우지끈!', '#ffffff');
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+            } else if (mode === 'MOLE') {
+                STATE.entities.forEach(m => {
+                    if (m.dizzyTimer > 0) {
+                        m.dizzyTimer--;
+                        if (m.dizzyTimer === 0) {
+                            m.state = 'DOWN';
+                            m.timer = 35 + Math.random() * 40;
+                        }
+                        return;
+                    }
+                    m.timer--;
+                    if (m.timer <= 0) {
+                        m.state = m.state === 'UP' ? 'DOWN' : 'UP';
+                        m.isGolden = Math.random() < 0.25;
+                        m.timer = m.state === 'UP' ? 85 : 35 + Math.random() * 35;
+                    }
+                    if (m.state === 'UP') {
+                        for (const c of STATE.cursors) {
+                            if (Math.hypot(c.x - m.x, c.y - (m.y - 20)) < m.radius + 32) {
+                                m.dizzyTimer = 25;
+                                sound.playPop(300);
+                                spawnParticles(m.x, m.y - 20, '#fde047', 16);
+                                spawnPopText(m.x, m.y - 50, '뿅! 까꿍! ⭐');
+                                addPoint(m.x, m.y, m.isGolden ? 2 : 1);
+                                break;
+                            }
+                        }
+                    }
+                });
+            } else if (mode === 'STAR') {
+                if (STATE.entities.length < 5) spawnStar();
+                for (let i = STATE.entities.length - 1; i >= 0; i--) {
+                    const st = STATE.entities[i];
+                    st.rot += 0.03;
+                    for (const c of STATE.cursors) {
+                        if (Math.hypot(c.x - st.x, c.y - st.y) < st.radius + 38) {
+                            sound.playNote(STATE.noteStep++);
+                            spawnParticles(st.x, st.y, '#fde047', 20);
+                            spawnPopText(st.x, st.y, '반짝! ⭐');
+                            addPoint(st.x, st.y, 1);
+                            STATE.entities.splice(i, 1);
+                            break;
+                        }
+                    }
+                }
+            } else if (mode === 'POSE' && STATE.posePrompt) {
+                let hitCount = 0;
+                STATE.posePrompt.targets.forEach(t => {
+                    t.hit = STATE.cursors.some(c => Math.hypot(c.x - t.x, c.y - t.y) < t.r + 45);
+                    if (t.hit) hitCount++;
+                });
+                if (hitCount > 0) {
+                    STATE.posePrompt.progress += hitCount * 2.2;
+                    if (STATE.posePrompt.progress >= 100) {
+                        sound.playFanfare();
+                        spawnParticles(canvas.width * 0.5, canvas.height * 0.4, '#fde047', 30);
+                        spawnPopText(canvas.width * 0.5, canvas.height * 0.4, '참 잘했어요! 최고! 🎉');
+                        addPoint(canvas.width * 0.5, canvas.height * 0.5, 2);
+                        nextPosePrompt();
+                    }
+                }
+            } else if (mode === 'HELI') {
+                const heli = STATE.helicopter;
+                heli.rotorAngle += 0.35;
+                if (STATE.cursors.length > 0) {
+                    const mainC = STATE.cursors[0];
+                    heli.x += (mainC.x - heli.x) * 0.18;
+                    heli.y += (mainC.y - heli.y) * 0.18;
+                }
+                if (STATE.entities.length < 5) spawnHeliItem();
+                for (let i = STATE.entities.length - 1; i >= 0; i--) {
+                    const item = STATE.entities[i];
+                    const hitByHeli = Math.hypot(heli.x - item.x, heli.y - item.y) < item.radius + 60;
+                    const hitByHand = STATE.cursors.some(c => Math.hypot(c.x - item.x, c.y - item.y) < item.radius + 35);
+                    if (hitByHeli || hitByHand) {
+                        sound.playNote(STATE.noteStep++);
+                        spawnParticles(item.x, item.y, '#4ade80', 16);
+                        spawnPopText(item.x, item.y, `냠냠! ${item.icon}`);
+                        addPoint(item.x, item.y, 1);
+                        STATE.entities.splice(i, 1);
+                    }
+                }
+            } else if (mode === 'PAIR') {
+                STATE.entities.forEach(card => {
+                    if (card.cooldown > 0) card.cooldown--;
+                    if (card.state === 'HIDDEN' && card.cooldown <= 0 && STATE.flippedCards.length < 2) {
+                        for (const c of STATE.cursors) {
+                            if (Math.abs(c.x - card.x) < card.w / 2 + 24 && Math.abs(c.y - card.y) < card.h / 2 + 24) {
+                                card.state = 'FLIPPED';
+                                card.cooldown = 20;
+                                sound.playPop(200);
+                                STATE.flippedCards.push(card);
+
+                                if (STATE.flippedCards.length === 2) {
+                                    const [c1, c2] = STATE.flippedCards;
+                                    if (c1.icon === c2.icon) {
+                                        c1.state = 'MATCHED';
+                                        c2.state = 'MATCHED';
+                                        STATE.flippedCards = [];
+                                        sound.playFanfare();
+                                        spawnParticles(c2.x, c2.y, '#fde047', 25);
+                                        spawnPopText(canvas.width * 0.5, canvas.height * 0.5, `짝짝짝! ${c1.icon} 찾았다!`);
+                                        addPoint(c2.x, c2.y, 2);
+
+                                        // Check if all matched
+                                        if (STATE.entities.every(e => e.state === 'MATCHED')) {
+                                            setTimeout(() => {
+                                                if (STATE.screen === 'PLAYING') setupPairCards();
+                                            }, 900);
+                                        }
+                                    } else {
+                                        setTimeout(() => {
+                                            c1.state = 'HIDDEN';
+                                            c2.state = 'HIDDEN';
+                                            STATE.flippedCards = [];
+                                        }, 800);
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        // =========================================================================
+        // 7. RENDERING ENGINE (Mirrored Camera + Cute Cartoon Targets + Pink Rings)
+        // =========================================================================
+        function renderGameCanvas() {
+            const cw = canvas.width;
+            const ch = canvas.height;
+            ctx.clearRect(0, 0, cw, ch);
+
+            // 1. Draw Live Mirrored Camera with Exact `object-fit: cover`
+            if (STATE.cameraReady && videoEl.readyState >= 2) {
+                const vw = videoEl.videoWidth || 1280;
+                const vh = videoEl.videoHeight || 720;
+                const scale = Math.max(cw / vw, ch / vh);
+                const sw = vw * scale;
+                const sh = vh * scale;
+                const ox = (cw - sw) / 2;
+                const oy = (ch - sh) / 2;
+
+                ctx.save();
+                ctx.translate(cw, 0);
+                ctx.scale(-1, 1);
+                ctx.drawImage(videoEl, ox, oy, sw, sh);
+                ctx.restore();
+            } else {
+                // Bright Kid-Friendly Sky Backdrop if camera is off
+                const grad = ctx.createLinearGradient(0, 0, 0, ch);
+                grad.addColorStop(0, '#38bdf8');
+                grad.addColorStop(1, '#bae6fd');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, cw, ch);
+            }
+
+            // 2. Cute Antenna Headband on Player's Head (Just like Photo #1!)
+            STATE.heads.forEach(h => {
+                ctx.save();
+                ctx.translate(h.x, h.y - 75);
+                // Left & Right Springs
+                ctx.strokeStyle = '#1e293b';
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.moveTo(-18, 15); ctx.lineTo(-28, -15);
+                ctx.moveTo(18, 15); ctx.lineTo(28, -15);
+                ctx.stroke();
+                // Pom-poms
+                ctx.fillStyle = '#f43f5e';
+                ctx.beginPath(); ctx.arc(-28, -18, 11, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                ctx.fillStyle = '#38bdf8';
+                ctx.beginPath(); ctx.arc(28, -18, 11, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                ctx.restore();
+            });
+
+            // 3. Draw Active Mini-Game Entities
+            if (STATE.screen === 'PLAYING') {
+                drawActiveModeEntities();
+            }
+
+            // 4. Draw Particles & Floating Texts
+            for (let i = STATE.particles.length - 1; i >= 0; i--) {
+                const p = STATE.particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.32;
+                p.alpha -= 0.028;
+                if (p.alpha <= 0) {
+                    STATE.particles.splice(i, 1);
+                    continue;
+                }
+                ctx.save();
+                ctx.globalAlpha = p.alpha;
+                ctx.fillStyle = p.color;
+                ctx.strokeStyle = '#1e293b';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            for (let i = STATE.popTexts.length - 1; i >= 0; i--) {
+                const pt = STATE.popTexts[i];
+                pt.y -= 2.2;
+                pt.alpha -= 0.025;
+                if (pt.alpha <= 0) {
+                    STATE.popTexts.splice(i, 1);
+                    continue;
+                }
+                ctx.save();
+                ctx.globalAlpha = pt.alpha;
+                ctx.font = '900 34px Jua, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.strokeStyle = '#1e293b';
+                ctx.lineWidth = 6;
+                ctx.strokeText(pt.text, pt.x, pt.y);
+                ctx.fillStyle = pt.color;
+                ctx.fillText(pt.text, pt.x, pt.y);
+                ctx.restore();
+            }
+
+            // 5. Draw Pink Double-Ring Hand Cursors (Exact Match to Reference Photo #1 & #2)
+            STATE.cursors.forEach(c => {
+                ctx.save();
+                ctx.translate(c.x, c.y);
+
+                // Outer translucent pink ring
+                ctx.beginPath();
+                ctx.arc(0, 0, 34, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(244, 114, 182, 0.28)';
+                ctx.fill();
+                ctx.lineWidth = 5;
+                ctx.strokeStyle = '#f43f5e';
+                ctx.stroke();
+
+                // Inner center bullseye dot
+                ctx.beginPath();
+                ctx.arc(0, 0, 9, 0, Math.PI * 2);
+                ctx.fillStyle = '#f43f5e';
+                ctx.fill();
+                ctx.lineWidth = 2.5;
+                ctx.strokeStyle = '#ffffff';
+                ctx.stroke();
+
+                ctx.restore();
+            });
+        }
+
+        function drawActiveModeEntities() {
+            const mode = STATE.currentGame;
+
+            if (mode === 'BALLOON') {
+                STATE.entities.forEach(b => {
+                    ctx.save();
+                    ctx.translate(b.x, b.y);
+                    // String
+                    ctx.beginPath();
+                    ctx.moveTo(0, b.radius);
+                    ctx.quadraticCurveTo(-8, b.radius + 20, 4, b.radius + 36);
+                    ctx.strokeStyle = '#1e293b';
+                    ctx.lineWidth = 4;
+                    ctx.stroke();
+                    // Balloon Body
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, b.radius * 0.88, b.radius, 0, 0, Math.PI * 2);
+                    ctx.fillStyle = b.color;
+                    ctx.fill();
+                    ctx.lineWidth = 5;
+                    ctx.strokeStyle = '#1e293b';
+                    ctx.stroke();
+                    // Highlight & Sticker
+                    ctx.font = '38px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(b.sticker, 0, 0);
+                    ctx.restore();
+                });
+            } else if (mode === 'ICE') {
+                // Draw glowing blue target circle + cracked ice cube inside (Exact match to Photo #1!)
+                STATE.entities.forEach(ice => {
+                    ctx.save();
+                    ctx.translate(ice.x, ice.y);
+
+                    // Big Outer Blue Glowing Ring
+                    ctx.beginPath();
+                    ctx.arc(0, 0, ice.radius + 18, 0, Math.PI * 2);
+                    ctx.strokeStyle = 'rgba(56, 189, 248, 0.85)';
+                    ctx.lineWidth = 14;
+                    ctx.stroke();
+
+                    // Ice Cube Rounded Square
+                    const s = ice.radius * 1.25;
+                    ctx.fillStyle = '#bae6fd';
+                    ctx.strokeStyle = '#1e293b';
+                    ctx.lineWidth = 5;
+                    ctx.beginPath();
+                    ctx.roundRect(-s / 2, -s / 2, s, s, 22);
+                    ctx.fill();
+                    ctx.stroke();
+
+                    // Prize peeking inside
+                    ctx.font = '44px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(ice.prize, 0, 0);
+
+                    // Crack lines based on remaining HP
+                    if (ice.hp < 3) {
+                        ctx.strokeStyle = '#1e293b';
+                        ctx.lineWidth = 4.5;
+                        ctx.beginPath();
+                        ctx.moveTo(0, -s / 2);
+                        ctx.lineTo(-12, 0);
+                        ctx.lineTo(14, s / 2);
+                        if (ice.hp === 1) {
+                            ctx.moveTo(-s / 2, 8);
+                            ctx.lineTo(s / 2, -10);
+                        }
+                        ctx.stroke();
+                    }
+                    ctx.restore();
+                });
+            } else if (mode === 'MOLE') {
+                STATE.entities.forEach(m => {
+                    ctx.save();
+                    ctx.translate(m.x, m.y);
+
+                    // Dirt Mound Back
+                    ctx.fillStyle = '#b45309';
+                    ctx.strokeStyle = '#1e293b';
+                    ctx.lineWidth = 5;
+                    ctx.beginPath();
+                    ctx.ellipse(0, 18, m.radius, 24, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+
+                    if (m.state === 'UP') {
+                        // Cute Mole Body
+                        ctx.fillStyle = m.isGolden ? '#fde047' : '#d97706';
+                        ctx.beginPath();
+                        ctx.arc(0, -18, 44, Math.PI, 0, false);
+                        ctx.lineTo(44, 16);
+                        ctx.lineTo(-44, 16);
+                        ctx.closePath();
+                        ctx.fill();
+                        ctx.stroke();
+
+                        // Eyes & Pink Nose
+                        ctx.fillStyle = '#1e293b';
+                        ctx.beginPath();
+                        ctx.arc(-15, -22, 6, 0, Math.PI * 2);
+                        ctx.arc(15, -22, 6, 0, Math.PI * 2);
+                        ctx.fill();
+
+                        ctx.fillStyle = '#fda4af';
+                        ctx.beginPath();
+                        ctx.ellipse(0, -10, 12, 8, 0, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.stroke();
+
+                        if (m.dizzyTimer > 0) {
+                            ctx.font = '30px sans-serif';
+                            ctx.textAlign = 'center';
+                            ctx.fillText('💫', 0, -68);
+                        }
+                    }
+                    ctx.restore();
+                });
+            } else if (mode === 'STAR') {
+                STATE.entities.forEach(st => {
+                    ctx.save();
+                    ctx.translate(st.x, st.y);
+                    ctx.rotate(Math.sin(st.rot) * 0.2);
+
+                    // Outer Halo
+                    ctx.beginPath();
+                    ctx.arc(0, 0, st.radius + 10, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(253, 224, 71, 0.28)';
+                    ctx.fill();
+
+                    ctx.font = '82px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('⭐', 0, 0);
+                    ctx.restore();
+                });
+            } else if (mode === 'POSE' && STATE.posePrompt) {
+                const p = STATE.posePrompt;
+                // Title Banner
+                ctx.save();
+                ctx.font = '900 42px Jua, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.strokeStyle = '#1e293b';
+                ctx.lineWidth = 8;
+                ctx.strokeText(p.title, canvas.width * 0.5, 130);
+                ctx.fillStyle = '#fde047';
+                ctx.fillText(p.title, canvas.width * 0.5, 130);
+
+                // Target Hand Zones
+                p.targets.forEach(t => {
+                    ctx.beginPath();
+                    ctx.arc(t.x, t.y, t.r, 0, Math.PI * 2);
+                    ctx.fillStyle = t.hit ? 'rgba(74, 222, 128, 0.55)' : 'rgba(168, 85, 247, 0.38)';
+                    ctx.fill();
+                    ctx.lineWidth = 7;
+                    ctx.strokeStyle = t.hit ? '#4ade80' : '#ffffff';
+                    ctx.stroke();
+
+                    ctx.font = '46px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('✋', t.x, t.y);
+                });
+                ctx.restore();
+            } else if (mode === 'HELI') {
+                // Draw collectible items
+                STATE.entities.forEach(item => {
+                    ctx.save();
+                    ctx.translate(item.x, item.y);
+                    ctx.beginPath();
+                    ctx.arc(0, 0, item.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+                    ctx.fill();
+                    ctx.lineWidth = 4;
+                    ctx.strokeStyle = '#1e293b';
+                    ctx.stroke();
+                    ctx.font = '48px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(item.icon, 0, 0);
+                    ctx.restore();
+                });
+
+                // Draw Player Helicopter
+                const h = STATE.helicopter;
+                ctx.save();
+                ctx.translate(h.x, h.y);
+                ctx.font = '86px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('🚁', 0, 0);
+                ctx.restore();
+            } else if (mode === 'PAIR') {
+                STATE.entities.forEach(card => {
+                    ctx.save();
+                    ctx.translate(card.x, card.y);
+                    ctx.fillStyle = card.state === 'HIDDEN' ? '#f472b6' : (card.state === 'MATCHED' ? '#bbf7d0' : '#ffffff');
+                    ctx.strokeStyle = '#1e293b';
+                    ctx.lineWidth = 5;
+                    ctx.beginPath();
+                    ctx.roundRect(-card.w / 2, -card.h / 2, card.w, card.h, 20);
+                    ctx.fill();
+                    ctx.stroke();
+
+                    ctx.font = '60px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(card.state === 'HIDDEN' ? '❓' : card.icon, 0, 0);
+                    ctx.restore();
+                });
+            }
+        }
+
+        // =========================================================================
+        // 8. TOP BAR CONTROLS & MAIN LOOP
+        // =========================================================================
+        document.getElementById('btnBackToLobby').addEventListener('click', returnToLobby);
+
+        document.getElementById('btnTogglePlayers').addEventListener('click', (e) => {
+            STATE.isTwoPlayer = !STATE.isTwoPlayer;
+            e.currentTarget.textContent = STATE.isTwoPlayer ? '👫 2명 대결' : '👶 1명 놀이';
+            document.getElementById('hudScore2PPill').classList.toggle('hidden', !STATE.isTwoPlayer);
+        });
+
+        const durations = [30, 45, 60];
+        let durIdx = 0;
+        document.getElementById('btnToggleDuration').addEventListener('click', (e) => {
+            durIdx = (durIdx + 1) % durations.length;
+            STATE.roundDuration = durations[durIdx];
+            STATE.timeRemaining = STATE.roundDuration;
+            e.currentTarget.textContent = `⏱️ ${STATE.roundDuration}초`;
+            updateHudCounters();
+        });
+
+        document.getElementById('btnToggleSound').addEventListener('click', () => {
+            sound.muted = !sound.muted;
+            document.getElementById('iconVolume').className = sound.muted
+                ? 'fa-solid fa-volume-xmark text-rose-500'
+                : 'fa-solid fa-volume-high text-blue-600';
+        });
+
+        function mainLoop() {
+            detectPoseHands();
+            detectOpticalMotionGrid();
+            updateGame();
+            renderGameCanvas();
+            requestAnimationFrame(mainLoop);
+        }
+
+        window.onload = () => {
+            initCamera();
+            initPoseAI();
+            mainLoop();
+        };
+    </script>
+</body>
+</html>
